@@ -91,11 +91,16 @@ def interprete_template_list(node_param: Node, txt: str) -> dict[str, TemplatePa
 
     res = {}
     for c in node_param.named_children:
-        assert c.type == "parameter_declaration"
+        assert c.type in ("parameter_declaration", "type_parameter_declaration")
 
         pinfo = TemplateParamInfo()
-        pinfo.type = node_text(c.child_by_field_name("type"), txt)
-        pinfo.name = node_text(c.child_by_field_name("declarator"), txt)
+        if c.type == "parameter_declaration":
+            pinfo.type = node_text(c.child_by_field_name("type"), txt)
+            pinfo.name = node_text(c.child_by_field_name("declarator"), txt)
+        elif c.type == "type_parameter_declaration":
+            assert 0, "template typenames not properly handled yet"
+            pinfo.type = "typename"
+            pinfo.name = node_text(c.named_children[0], txt)
         pinfo.instances = []
         
         res[pinfo.name] = pinfo
