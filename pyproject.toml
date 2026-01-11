@@ -1,0 +1,14 @@
+[project]
+name = "jax-ffi-gen"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2",
+    "tree_sitter",
+    "tree_sitter_cuda"
+]
+description = "Scripts to auto-generate jax's foreign function interface from CUDA kernels"
+authors = [
+    { name="Jens Stücker", email="jens.stuecker@univie.ac.at" }
+]
+readme = "README.md"
