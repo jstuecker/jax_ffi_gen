@@ -1,4 +1,92 @@
 {%- set sep = joiner(",") -%}
+{%- macro dispatch_params() -%}
+    cudaStream_t stream{% if f.par %},{% endif %}
+{%- for p in f.par %}
+    {%- if p.is_ptr %}
+    {{ "const " if p.is_const else "" }}void* {{ p.name }}{% if not loop.last %},{% endif %}
+    {%- else %}
+    {{ p.type }} {{ p.name }}{% if not loop.last %},{% endif %}
+    {%- endif %}
+{%- endfor %}
+{%- endmacro -%}
+
+{%- macro template_params(format='values') -%}
+{%- for p in f.template_par.values() -%}
+{%- if format == 'decl' -%}
+{{ p.type }} {{ p.name }}
+{%- else -%}
+{{ p.name }}
+{%- endif -%}
+{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+{%- endmacro -%}
+
+
+
+{%- macro wrapper_call_args() -%}
+        stream{% if f.par %},{% endif %}
+{%- for p in f.par %}
+        {%- if p.is_ptr %}
+        reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }}*>({{ p.name }}){% if not loop.last %},{% endif %}
+        {%- else %}
+        {{ p.name }}{% if not loop.last %},{% endif %}
+        {%- endif %}
+{%- endfor %}
+{%- endmacro -%}
+
+{%- macro get_ptr_data(p) -%}
+{%- if p.is_const -%}
+{{ p.name }}.untyped_data()
+{%- else -%}
+{{ p.name }}->untyped_data()
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro direct_call_args() -%}
+        stream{% if f.par %},{% endif %}
+{%- for p in f.par %}
+        {%- if p.is_ptr %}
+        reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }}*>({{ get_ptr_data(p) }}){% if not loop.last %},{% endif %}
+        {%- else %}
+        {{ p.name }}{% if not loop.last %},{% endif %}
+        {%- endif %}
+{%- endfor %}
+{%- endmacro -%}
+
+{%- macro instance_call_args() -%}
+        stream{% if f.par %},{% endif %}
+{%- for p in f.par %}
+        {%- if p.is_ptr %}
+        {{ get_ptr_data(p) }}{% if not loop.last %},{% endif %}
+        {%- else %}
+        {{ p.name }}{% if not loop.last %},{% endif %}
+        {%- endif %}
+{%- endfor %}
+{%- endmacro -%}
+
+{% if not f.is_kernel and f.template_par %}
+using {{ f.name }}DispatchFn = {{ f.type }} (*) (
+{{- dispatch_params() }}
+);
+template<{{- template_params('decl') -}}>
+static {{ f.type }} {{ f.name }}DispatchWrapper(
+{{- dispatch_params() }}
+) {
+    {%- if f.type != "void" %}
+    return {{ f.name }}<{{- template_params('values') -}}> (
+{{- wrapper_call_args() }}
+    );
+    {%- else %}
+    {{ f.name }}<{{- template_params('values') -}}> (
+{{- wrapper_call_args() }}
+    );
+    {%- endif -%}
+    {%- if f.type == "void" %}
+    return;
+    {%- endif %}
+}
+
+{% endif %}
 ffi::Error {{ f.name }}FFIHost({{ sep() }}
     cudaStream_t stream
 {%- for p in f.par -%}
@@ -49,37 +137,34 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     {%- endfor %}
     
     // Build a bundled argument list for cudaLaunchKernel
-    // For pointers we need to create a pointer to the pointer
-    {%- for p in f.par %}
-        {%-if p.is_ptr %}
-    {{p.type}}* {{p.name}}_val = {{""}}
-            {%- if p.is_const -%}
-            reinterpret_cast<{{p.type}}*>({{ p.name }}.untyped_data());
-            {%- else -%}
-            reinterpret_cast<{{p.type}}*>({{ p.name }}->untyped_data());
-            {%- endif -%}
-        {%- endif %}
+    {%- for p in f.par if p.is_ptr %}
+    void* {{ p.name }}_arg = {{ get_ptr_data(p) }};
     {%- endfor %}
-
     void* args[] = {
     {%- for p in f.par %}
-        {%-if p.is_ptr %}
-        &{{p.name}}_val
+        {%- if p.is_ptr %}
+        &{{ p.name }}_arg{{ "," if not loop.last else "" }}
         {%- else %}
-        &{{ p.name }}
+        &{{ p.name }}{{ "," if not loop.last else "" }}
         {%- endif %}
-        {{- "," if not loop.last else "" }}
     {%- endfor %}
     };
 
     {%- if f.template_par %}
     
 {% include "template_instancing.j2" %}
-    
-    cudaLaunchKernel((const void*)instance, gridDim, blockDim, args, smem, stream);
     {%- else %}
-    cudaLaunchKernel((const void*){{f.name}}, gridDim, blockDim, args, smem, stream);
+    const void* instance = (const void*){{f.name}};
     {%- endif %}
+
+    cudaLaunchKernel(
+        instance,
+        gridDim,
+        blockDim,
+        args,
+        smem,
+        stream
+    );
 {%- else -%}
     {%- if f.template_par %}
 
@@ -93,23 +178,13 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
 
     {%- if f.template_par %}
     {{ return_type }}instance(
+{{- instance_call_args() }}
+    );
     {%- else %}
     {{ return_type }}{{ f.name }}(
-    {%- endif %}
-        stream,
-    {%- for p in f.par %}
-        {%if p.is_ptr -%}
-            {%- if p.is_const -%}
-        reinterpret_cast<{{p.type}}*>({{ p.name }}.untyped_data())
-            {%- else -%}
-        reinterpret_cast<{{p.type}}*>({{ p.name }}->untyped_data())
-            {%- endif -%}
-        {%- else -%}
-            {{ p.name }}
-        {%- endif -%}
-        {{- "," if not loop.last else "" }}
-    {%- endfor %}
+{{- direct_call_args() }}
     );
+    {%- endif %}
 
     {%- if f.type == "std::string" %}
     // Check if the function returned an error string

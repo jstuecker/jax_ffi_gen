@@ -1,23 +1,37 @@
-    // We have template parameters, so we need to instantiate all valid templates
-    // For this we select a function pointer through a map
+    // We have template parameters, so we need to instantiate all valid templates.
+    // We select a function pointer through a map with a stable, type-erased signature.
     using TTuple = std::tuple<
-    {%- for p in f.template_par.values()-%}
+    {%- for p in f.template_par.values() -%}
         {{ p.type }}{{ ", " if not loop.last else "" }}
-    {%- endfor %}>;
-    using TFunctionType = decltype({{f.name}}<{{ f.template_values_str()[0] }}>);
+    {%- endfor -%}
+    >;
 
-    std::map<TTuple, TFunctionType*> instance_map;
-    {%- for tval in f.template_values_str()%}
-    instance_map[{ {{-tval-}}  }] = {{f.name}}<{{ tval }}>;
+    using TFunctionType =
+    {%- if f.is_kernel %}
+        const void*
+    {%- else %}
+        {{ f.name }}DispatchFn
+    {%- endif %}
+    ;
+
+    static const std::map<TTuple, TFunctionType> instance_map = {
+    {%- for tval in f.template_values_str() %}
+        {%- if f.is_kernel %}
+        { {{ "{" }}{{- tval -}}{{ "}" }}, reinterpret_cast<const void*>(&{{ f.name }}<{{ tval }}>) }{{ "," if not loop.last else "" }}
+        {%- else %}
+        { {{ "{" }}{{- tval -}}{{ "}" }}, &{{ f.name }}DispatchWrapper<{{ tval }}> }{{ "," if not loop.last else "" }}
+        {%- endif %}
     {%- endfor %}
+    };
 
-    auto it = instance_map.find({
+    const TTuple key = TTuple{
     {%- for p in f.template_par.values() -%}
         {{ p.name }}{{ ", " if not loop.last else "" }}
     {%- endfor -%}
-    });
+    };
 
-    if(it == instance_map.end()) {
+    const auto it = instance_map.find(key);
+    if (it == instance_map.end()) {
         return ffi::Error::Internal(
             "\nUnsupported template parameter combination for (
                 {%- for k in f.template_par.keys() -%}{{k}}{{ ", " if not loop.last else "" }}{%- endfor -%})"\
@@ -27,5 +41,8 @@
             {%- endfor -%}"
         );
     }
-
-    TFunctionType* instance = it->second;
+    {%- if f.is_kernel %}
+    const void* instance = it->second;
+    {%- else %}
+    {{ f.name }}DispatchFn instance = it->second;
+    {%- endif %}
