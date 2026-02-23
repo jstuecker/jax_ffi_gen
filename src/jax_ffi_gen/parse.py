@@ -8,6 +8,34 @@ except ImportError as e:
 
 from dataclasses import dataclass, field
 
+def std_dtype_to_ffi_enum(typename):
+    dtype_map = {
+        "float": "F32",
+        "double": "F64",
+        "int": "S32",
+        "int32_t": "S32",
+        "int64_t": "S64",
+        "long long": "S64",
+        "int16_t": "S16",
+        "short": "S16",
+        "int8_t": "S8",
+        "uint32_t": "U32",
+        "unsigned int": "U32",
+        "uint64_t": "U64",
+        "unsigned long long": "U64",
+        "uint16_t": "U16",
+        "unsigned short": "U16",
+        "uint8_t": "U8",
+        "half": "F16",
+        "__half": "F16",
+        "bool": "PRED"
+    }
+    if typename in dtype_map:
+        return "DT::" + dtype_map[typename]
+    else:
+        raise ValueError(f"Unknown datatype {typename}, cannot map to FFI type...")
+
+
 @dataclass
 class ParamInfo():
     type : str = ""
@@ -17,12 +45,20 @@ class ParamInfo():
     expression : str = ""
     init_zero : bool = False
 
+
 @dataclass
 class TemplateParamInfo():
     type : str = ""
     name : str = ""
     instances : list[str] = ()
     expression : str = ""
+    dtype_from_buffer : str = ""  # Buffer parameter name to extract dtype from
+
+    def dispatch_values(self):
+        if self.type != "DT":
+            return self.instances
+        
+        return tuple(map(std_dtype_to_ffi_enum, self.instances))
 
 @dataclass
 class FunctionInfo():
@@ -35,14 +71,21 @@ class FunctionInfo():
     grid_size_expression : str = ""
     smem_size_expression : str = ""
     init_outputs_zero : bool = False
-    template_instances : list[tuple] | None = None
 
     def template_values_flat(self):
-        if self.template_instances is not None:
-            return self.template_instances
-
         all_perm = np.meshgrid(*[p.instances for p in self.template_par.values()], indexing='ij')
         return np.stack(all_perm, axis=-1).reshape(-1, len(self.template_par))
+    
+    def dispatch_values_flat(self):
+        """Returns dispatch key values derived from instances."""
+        values_list = [p.dispatch_values() for p in self.template_par.values()]
+        
+        all_perm = np.meshgrid(*values_list, indexing='ij')
+        return np.stack(all_perm, axis=-1).reshape(-1, len(self.template_par))
+    
+    def dispatch_values_str(self):
+        return [", ".join([str(v) for v in vals]) for vals in self.dispatch_values_flat()]
+    
     def template_values_str(self):
         return [", ".join([str(v) for v in vals]) for vals in self.template_values_flat()]
 
@@ -99,9 +142,10 @@ def interprete_template_list(node_param: Node, txt: str) -> dict[str, TemplatePa
             pinfo.type = node_text(c.child_by_field_name("type"), txt)
             pinfo.name = node_text(c.child_by_field_name("declarator"), txt)
         elif c.type == "type_parameter_declaration":
-            assert 0, "template typenames not properly handled yet"
-            pinfo.type = "typename"
-            pinfo.name = node_text(c.named_children[0], txt)
+            # Handle typename/class template parameters (e.g., "typename T" or "class T")
+            pinfo.type = "DT"
+            # The type identifier is typically the last named child
+            pinfo.name = node_text(c.named_children[-1], txt)
         elif c.type == "optional_parameter_declaration":
             pinfo.type = node_text(c.child_by_field_name("type"), txt)
             pinfo.name = node_text(c.child_by_field_name("declarator"), txt)

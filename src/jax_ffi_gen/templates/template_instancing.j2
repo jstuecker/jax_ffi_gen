@@ -1,3 +1,4 @@
+{# Template for generating template parameter dispatch maps #}
     // We have template parameters, so we need to instantiate all valid templates.
     // We select a function pointer through a map with a stable, type-erased signature.
     using TTuple = std::tuple<
@@ -6,29 +7,29 @@
     {%- endfor -%}
     >;
 
-    using TFunctionType =
     {%- if f.is_kernel %}
-        const void*
+    using TFunc = const void*;
     {%- else %}
-        {{ f.name }}DispatchFn
+    using TFunc = {{ f.name }}DispatchFn;
     {%- endif %}
-    ;
 
-    static const std::map<TTuple, TFunctionType> instance_map = {
-    {%- for tval in f.template_values_str() %}
+    static const std::map<TTuple, TFunc> instance_map = {
+    {%- for i in range(f.template_values_str()|length) %}
+        {%- set tval = f.template_values_str()[i] %}
+        {%- set dval = f.dispatch_values_str()[i] %}
         {%- if f.is_kernel %}
-        { {{ "{" }}{{- tval -}}{{ "}" }}, reinterpret_cast<const void*>(&{{ f.name }}<{{ tval }}>) }{{ "," if not loop.last else "" }}
+        { {{ "{" ~ dval ~ "}" }}, reinterpret_cast<TFunc>(&{{ f.name }}<{{ tval }}>) }{{ "," if not loop.last else "" }}
         {%- else %}
-        { {{ "{" }}{{- tval -}}{{ "}" }}, &{{ f.name }}DispatchWrapper<{{ tval }}> }{{ "," if not loop.last else "" }}
+        { {{ "{" ~ dval ~ "}" }}, &{{ f.name }}DispatchWrapper<{{ tval }}> }{{ "," if not loop.last else "" }}
         {%- endif %}
     {%- endfor %}
     };
 
-    const TTuple key = TTuple{
+    const TTuple key = TTuple(
     {%- for p in f.template_par.values() -%}
         {{ p.name }}{{ ", " if not loop.last else "" }}
     {%- endfor -%}
-    };
+    );
 
     const auto it = instance_map.find(key);
     if (it == instance_map.end()) {

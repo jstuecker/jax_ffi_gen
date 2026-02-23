@@ -22,6 +22,9 @@ nanobind::capsule EncapsulateFfiCall(T *fn) {
 
 namespace nb = nanobind;
 namespace ffi = xla::ffi;
+
+using DT = ffi::DataType;
+
 {%- for f in functions %}
 
 /* ---------------------------------------------------------------------------------------------- */

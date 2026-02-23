@@ -101,7 +101,7 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
         {%- endif -%}
 {%- endfor -%}
 {%- for p in f.template_par.values() -%}
-    {%- if not p.expression -%}{{ sep() }}
+    {%- if not p.expression and not p.dtype_from_buffer -%}{{ sep() }}
     {{ p.type }} {{ p.name }}
     {%- endif -%}
 {%- endfor -%}
@@ -224,7 +224,7 @@ XLA_FFI_DEFINE_HANDLER_SYMBOL(
         {%- endif %}
 {%- endfor %}
 {%- for p in f.template_par.values() %}
-    {%- if not p.expression %}
+    {%- if not p.expression and not p.dtype_from_buffer %}
         .Attr<{{p.type}}>("{{ p.name }}")
     {%- endif %}
 {%- endfor %}

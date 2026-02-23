@@ -19,13 +19,12 @@ def simplify_and_validate(func: FunctionInfo) -> FunctionInfo:
         par = list(func.par.values())
     )
 
-    if func.template_instances is None:
-        for name,p in func.template_par.items():
-            if (len(p.instances) == 0) and (p.type == "bool"):
-                p.instances = ("true", "false")
-            elif len(p.instances) == 0:
-                raise ValueError(f"Please define instances for template parameter {p.name} "
-                                f"in function {func.name}.")
+    for name,p in func.template_par.items():
+        if (len(p.instances) == 0) and (p.type == "bool"):
+            p.instances = ("true", "false")
+        elif len(p.instances) == 0:
+            raise ValueError(f"Please define instances for template parameter {p.name} "
+                            f"in function {func.name}.")
 
     return func
 
