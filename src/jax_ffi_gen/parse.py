@@ -22,6 +22,7 @@ class TemplateParamInfo():
     type : str = ""
     name : str = ""
     instances : list[str] = ()
+    expression : str = ""
 
 @dataclass
 class FunctionInfo():

@@ -100,8 +100,10 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     {{ p.type }} {{ p.name -}}
         {%- endif -%}
 {%- endfor -%}
-{%- for p in f.template_par.values() -%}{{ sep() }}
+{%- for p in f.template_par.values() -%}
+    {%- if not p.expression -%}{{ sep() }}
     {{ p.type }} {{ p.name }}
+    {%- endif -%}
 {%- endfor -%}
 {%- if f.is_kernel and not f.grid_size_expression -%}{{ sep() }}
     size_t grid_size
@@ -112,6 +114,11 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
 ) {
 {%- for p in f.par -%}
     {%- if not p.is_ptr and p.expression %}
+    {{ p.type }} {{ p.name }} = {{ p.expression -}};
+    {%- endif -%}
+{%- endfor %}
+{%- for p in f.template_par.values() -%}
+    {%- if p.expression %}
     {{ p.type }} {{ p.name }} = {{ p.expression -}};
     {%- endif -%}
 {%- endfor %}
@@ -217,7 +224,9 @@ XLA_FFI_DEFINE_HANDLER_SYMBOL(
         {%- endif %}
 {%- endfor %}
 {%- for p in f.template_par.values() %}
+    {%- if not p.expression %}
         .Attr<{{p.type}}>("{{ p.name }}")
+    {%- endif %}
 {%- endfor %}
 {%- if f.is_kernel and not f.grid_size_expression %}
         .Attr<size_t>("grid_size")
