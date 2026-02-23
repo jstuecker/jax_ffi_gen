@@ -3,7 +3,7 @@
     // We select a function pointer through a map with a stable, type-erased signature.
     using TTuple = std::tuple<
     {%- for p in f.template_par.values() -%}
-        {{ p.type }}{{ ", " if not loop.last else "" }}
+        {{ p.ctype() }}{{ ", " if not loop.last else "" }}
     {%- endfor -%}
     >;
 

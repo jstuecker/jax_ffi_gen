@@ -54,8 +54,12 @@ class TemplateParamInfo():
     expression : str = ""
     dtype_from_buffer : str = ""  # Buffer parameter name to extract dtype from
 
+    def ctype(self):
+        """Return the C type for dispatch tuples (DT for typename, type otherwise)"""
+        return "DT" if self.type == "typename" else self.type
+
     def dispatch_values(self):
-        if self.type != "DT":
+        if self.type != "typename":
             return self.instances
         
         return tuple(map(std_dtype_to_ffi_enum, self.instances))
@@ -143,7 +147,7 @@ def interprete_template_list(node_param: Node, txt: str) -> dict[str, TemplatePa
             pinfo.name = node_text(c.child_by_field_name("declarator"), txt)
         elif c.type == "type_parameter_declaration":
             # Handle typename/class template parameters (e.g., "typename T" or "class T")
-            pinfo.type = "DT"
+            pinfo.type = "typename"
             # The type identifier is typically the last named child
             pinfo.name = node_text(c.named_children[-1], txt)
         elif c.type == "optional_parameter_declaration":
