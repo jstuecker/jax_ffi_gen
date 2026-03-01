@@ -198,6 +198,11 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     if (!result.empty()) {
         return ffi::Error::Internal(result);
     }
+    {%- elif f.type == "ffi::Error" %}
+    // Check if the function returned an error
+    if (!result.success()) {
+        return result;
+    }
     {%- endif %}
 {%- endif %}
 
