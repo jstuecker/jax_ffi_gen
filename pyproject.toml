@@ -1,6 +1,6 @@
 [project]
 name = "jax-ffi-gen"
-version = "0.1.0"
+version = "0.5.0"
 requires-python = ">=3.10"
 dependencies = [
     "jinja2",
@@ -12,3 +12,17 @@ authors = [
     { name="Jens Stücker", email="jens.stuecker@univie.ac.at" }
 ]
 readme = "README.md"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/jstuecker/jax_ffi_gen"
+Issues = "https://github.com/jstuecker/jax_ffi_gen/issues"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
