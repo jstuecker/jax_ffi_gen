@@ -14,9 +14,11 @@
     {%- endif %}
 
     static const std::map<TTuple, TFunc> instance_map = {
-    {%- for i in range(f.template_values_str()|length) %}
-        {%- set tval = f.template_values_str()[i] %}
-        {%- set dval = f.dispatch_values_str()[i] %}
+    {%- set template_values = f.template_values_str() %}
+    {%- set dispatch_values = f.dispatch_values_str() %}
+    {%- for i in range(template_values|length) %}
+        {%- set tval = template_values[i] %}
+        {%- set dval = dispatch_values[i] %}
         {%- if f.is_kernel %}
         { {{ "{" ~ dval ~ "}" }}, reinterpret_cast<TFunc>(&{{ f.name }}<{{ tval }}>) }{{ "," if not loop.last else "" }}
         {%- else %}
@@ -37,7 +39,7 @@
             "\nUnsupported template parameter combination for (
                 {%- for k in f.template_par.keys() -%}{{k}}{{ ", " if not loop.last else "" }}{%- endfor -%})"\
             " in {{f.name}}FFIHost -- Only supporting:\n"\
-            "{%- for tval in f.template_values_str()-%}
+            "{%- for tval in template_values-%}
             ({{ tval }}){{ ", " if not loop.last else "" }}
             {%- endfor -%}"
         );

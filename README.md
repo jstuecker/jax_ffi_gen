@@ -39,6 +39,10 @@ kernels["MyKernelA"].smem_size_expression = "blockDim.x * sizeof(float4)" # dyna
 kernels["MyKernelA"].par["num_particles"].expression = "x.element_count()/3"
 kernels["MyKernelA"].template_par["p"].instances = (0,1,2)
 
+# Optionally retain only selected combinations of template parameters. The
+# filter receives the original Python instance values by keyword.
+kernels["MyKernelA"].template_filter = lambda *, p, **_: p != 1
+
 generator.generate_ffi_module_file(
     output_file = str(HERE / "generated/ffi_new_kernels.cu"), 
     functions = kernels,

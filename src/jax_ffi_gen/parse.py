@@ -1,4 +1,4 @@
-import numpy as np
+from itertools import product
 
 try:
     import tree_sitter_cuda
@@ -6,6 +6,7 @@ try:
 except ImportError as e:
     raise ImportError("Please install tree-sitter and tree-sitter-cuda packages to use this module.") from e
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 def std_dtype_to_ffi_enum(typename):
@@ -64,6 +65,11 @@ class TemplateParamInfo():
         
         return tuple(map(std_dtype_to_ffi_enum, self.instances))
 
+    def dispatch_value(self, value):
+        if self.type != "typename":
+            return value
+        return std_dtype_to_ffi_enum(value)
+
 @dataclass
 class FunctionInfo():
     name : str
@@ -75,17 +81,42 @@ class FunctionInfo():
     grid_size_expression : str = ""
     smem_size_expression : str = ""
     init_outputs_zero : bool = False
+    template_filter : Callable[..., bool] | None = None
 
     def template_values_flat(self):
-        all_perm = np.meshgrid(*[p.instances for p in self.template_par.values()], indexing='ij')
-        return np.stack(all_perm, axis=-1).reshape(-1, len(self.template_par))
+        values = list(product(*[p.instances for p in self.template_par.values()]))
+        if self.template_filter is None:
+            return values
+
+        names = tuple(self.template_par)
+        filtered = []
+        for combination in values:
+            arguments = dict(zip(names, combination))
+            keep = self.template_filter(**arguments)
+            if not isinstance(keep, bool):
+                raise TypeError(
+                    f"Template filter for {self.name} must return bool, "
+                    f"got {type(keep).__name__} for {arguments}."
+                )
+            if keep:
+                filtered.append(combination)
+
+        if not filtered:
+            raise ValueError(
+                f"Template filter for {self.name} removed every template combination."
+            )
+        return filtered
     
     def dispatch_values_flat(self):
-        """Returns dispatch key values derived from instances."""
-        values_list = [p.dispatch_values() for p in self.template_par.values()]
-        
-        all_perm = np.meshgrid(*values_list, indexing='ij')
-        return np.stack(all_perm, axis=-1).reshape(-1, len(self.template_par))
+        """Return dispatch keys corresponding to the retained template values."""
+        parameters = tuple(self.template_par.values())
+        return [
+            tuple(
+                parameter.dispatch_value(value)
+                for parameter, value in zip(parameters, combination)
+            )
+            for combination in self.template_values_flat()
+        ]
     
     def dispatch_values_str(self):
         return [", ".join([str(v) for v in vals]) for vals in self.dispatch_values_flat()]
