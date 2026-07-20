@@ -132,17 +132,17 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     {%- if f.grid_size_expression %}
     dim3 gridDim({{ f.grid_size_expression }});
     {%- else %}
-    dim3 gridDim(grid_size);    
+    dim3 gridDim(grid_size);
     {%- endif %}
     size_t smem = {{ f.smem_size_expression or "0"}};
 
     {%- for p in f.par if (p.is_ptr and not p.is_const) and (p.init_zero or f.init_outputs_zero) %}
-    {% if loop.index == 1 %}
+{% if loop.index == 1 %}
     // Initialize output buffers
     {% endif -%}
     cudaMemsetAsync({{ p.name }}->untyped_data(), 0, {{ p.name }}->size_bytes(), stream);
     {%- endfor %}
-    
+
     // Build a bundled argument list for cudaLaunchKernel
     {%- for p in f.par if p.is_ptr %}
     void* {{ p.name }}_arg = {{ get_ptr_data(p) }};
@@ -158,7 +158,7 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     };
 
     {%- if f.template_par %}
-    
+
 {% include "template_instancing.j2" %}
     {%- else %}
     const void* instance = (const void*){{f.name}};
