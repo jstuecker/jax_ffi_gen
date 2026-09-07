@@ -1,6 +1,6 @@
 [project]
 name = "jax-ffi-gen"
-version = "0.6.0"
+version = "0.6.1"
 requires-python = ">=3.10"
 dependencies = [
     "jinja2",
@@ -26,3 +26,6 @@ Issues = "https://github.com/jstuecker/jax_ffi_gen/issues"
 [build-system]
 requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+jax_ffi_gen = ["templates/*.j2"]
