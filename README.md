@@ -49,3 +49,5 @@ generator.generate_ffi_module_file(
     includes = ["../math.cuh"] # set includes
 )
 ```
+
+Template filtering requires **jax-ffi-gen 0.6.0 or newer**. The filter receives each combination of template parameter values as keyword arguments and must return a Python `bool`. Only retained combinations are instantiated and included in the generated dispatch; at least one combination must remain. This can reduce CUDA compilation time and binary size when only part of the template matrix is needed.
