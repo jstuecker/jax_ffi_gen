@@ -140,7 +140,7 @@ def test_template_attribute_can_keep_external_name(platform):
     code = create_ffi_call(fn)
     assert '.Attr<int>("order")' in code
     assert '.Attr<int>("Order")' not in code
-    assert "int Order" in code
+    assert "template <int Order>" in code
     wrapper = code.split("ExampleDispatchWrapper(")[1].split(") {")[0]
     assert "int Order" not in wrapper  # dispatch-only choice, no runtime argument
     fn.template_par["Order"].attribute_name = ""
