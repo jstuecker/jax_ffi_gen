@@ -102,3 +102,9 @@ redundant runtime argument to the native function. Set
 `TemplateParamInfo.attribute_name="order"` to keep a Python attribute named
 `order` while the C++ template parameter is named `Order`. With no override,
 the attribute uses the template parameter's name as before.
+
+Generated C++/CUDA layout is emitted directly by the Jinja templates, using
+four-space indentation and a 100-column target. No external formatter is
+required. Caller-supplied C++ expressions may contain newlines for readability;
+they are indented in the generated body without rewriting their contents.
+Long diagnostic strings may exceed the column target.

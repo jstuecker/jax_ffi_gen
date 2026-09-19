@@ -1,4 +1,5 @@
 {# Template for generating template parameter dispatch maps #}
+
     // We have template parameters, so we need to instantiate all valid templates.
     // We select a function pointer through a map with a stable, type-erased signature.
     using TTuple = std::tuple<
@@ -20,9 +21,11 @@
         {%- set tval = template_values[i] %}
         {%- set dval = dispatch_values[i] %}
         {%- if f.is_kernel %}
-        { {{ "{" ~ dval ~ "}" }}, reinterpret_cast<TFunc>(&{{ f.name }}<{{ tval }}>) }{{ "," if not loop.last else "" }}
+        {{ "{{" ~ dval ~ "}" }},
+            reinterpret_cast<TFunc>(&{{ f.name }}<{{ tval }}>)}{{ "," if not loop.last else "" }}
         {%- else %}
-        { {{ "{" ~ dval ~ "}" }}, &{{ f.name }}DispatchWrapper<{{ tval }}> }{{ "," if not loop.last else "" }}
+        {{ "{{" ~ dval ~ "}" }},
+            &{{ f.name }}DispatchWrapper<{{ tval }}>}{{ "," if not loop.last else "" }}
         {%- endif %}
     {%- endfor %}
     };
@@ -37,11 +40,11 @@
     if (it == instance_map.end()) {
         return ffi::Error::Internal(
             "\nUnsupported template parameter combination for (
-                {%- for k in f.template_par.keys() -%}{{k}}{{ ", " if not loop.last else "" }}{%- endfor -%})"\
-            " in {{f.name}}FFIHost -- Only supporting:\n"\
-            "{%- for tval in template_values-%}
-            ({{ tval }}){{ ", " if not loop.last else "" }}
-            {%- endfor -%}"
+                {%- for k in f.template_par.keys() -%}{{k}}{{ ", " if not loop.last else "" }}{%- endfor -%})"
+            " in {{f.name}}FFIHost -- Only supporting:\n"
+            {% for tval in template_values -%}
+            "({{ tval }}){{ ", " if not loop.last else "" }}"{{ "\n            " if not loop.last else "" }}
+            {%- endfor %}
         );
     }
     {%- if f.is_kernel %}

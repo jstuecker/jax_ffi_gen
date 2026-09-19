@@ -70,7 +70,9 @@ def test_template_filter_cannot_remove_every_combination():
 
 
 @pytest.mark.parametrize("platform", ["cpu", "cuda"])
-def test_host_generation_is_repeatable_and_selects_platform(tmp_path, platform):
+def test_host_generation_is_repeatable_and_selects_platform(tmp_path, monkeypatch, platform):
+    # Formatting is emitted by templates, with no external executable available.
+    monkeypatch.setenv("PATH", str(tmp_path))
     from jax_ffi_gen.parse import get_functions_from_file
     source = tmp_path / 'host.cuh'
     stream = 'cudaStream_t stream, ' if platform == 'cuda' else ''
@@ -82,6 +84,9 @@ def test_host_generation_is_repeatable_and_selects_platform(tmp_path, platform):
     fn.template_par['T'].expression = 'x.element_type()'
     code = create_ffi_call(fn)
     assert create_ffi_call(fn) == code
+    assert "\t" not in code
+    assert all((len(line) - len(line.lstrip())) % 4 == 0 for line in code.splitlines())
+    assert all(len(line) <= 100 for line in code.splitlines())
     assert ('cudaStream_t' in code) == (platform == 'cuda')
     assert ('cudaGetLastError' in code) == (platform == 'cuda')
     assert '&ScaleDispatchWrapper<float>' in code
@@ -118,9 +123,10 @@ def test_generated_input_checks_precede_dispatch(platform):
         fn.par = {"stream": ParamInfo(type="cudaStream_t", name="stream")}
     fn.checks = (("n > 0", 'Invalid "n"'),)
     code = create_ffi_call(fn)
-    assert 'if (!(n > 0))' in code
+    compact = ' '.join(code.split())
+    assert 'if (!( n > 0 ))' in compact
     assert 'ffi::Error::InvalidArgument("Invalid \\"n\\"")' in code
-    assert code.index('if (!(n > 0))') < code.index('const auto it =')
+    assert code.index('if (!(') < code.index('const auto it =')
 
 
 @pytest.mark.parametrize("platform", ["cpu", "cuda"])

@@ -36,7 +36,7 @@ def create_ffi_call(func: FunctionInfo) -> str:
     func = simplify_and_validate(func)
 
     template = env.get_template("template_ffi_call.j2")
-    return template.render(f=func)
+    return template.render(f=func).strip() + "\n"
 
 def create_ffi_module_code(funcs: list[FunctionInfo], 
                            includes: tuple[str] = (), 
@@ -99,16 +99,16 @@ def create_ffi_registration_code(functions: list[tuple[FunctionInfo, str]],
 
     import json
     lines = ['// Generated FFI registration; do not edit.',
-             '#include <nanobind/nanobind.h>', '#include "xla/ffi/api/ffi.h"']
+             '#include <nanobind/nanobind.h>', '#include "xla/ffi/api/ffi.h"', '']
     for platform, entries in grouped.items():
         lines += guarded(platform, [f'XLA_FFI_DECLARE_HANDLER_SYMBOL({name}FFI);'
                                     for name in entries.values()])
-    lines += ['inline nanobind::dict FFIRegistrations() {', '  nanobind::dict result;']
+    lines += ['', 'inline nanobind::dict FFIRegistrations() {', '    nanobind::dict result;']
     for platform, entries in grouped.items():
-        body = ['  {', '    nanobind::dict targets;']
+        body = ['    {', '        nanobind::dict targets;']
         for target, name in entries.items():
-            body += [f'    targets[{json.dumps(target)}] = nanobind::capsule(',
-                     f'        reinterpret_cast<void *>(&{name}FFI), "xla._CUSTOM_CALL_TARGET");']
-        body += [f'    result["{ "CUDA" if platform == "cuda" else "cpu" }"] = targets;', '  }']
+            body += [f'        targets[{json.dumps(target)}] = nanobind::capsule(',
+                     f'            reinterpret_cast<void *>(&{name}FFI), "xla._CUSTOM_CALL_TARGET");']
+        body += [f'        result["{ "CUDA" if platform == "cuda" else "cpu" }"] = targets;', '    }']
         lines += guarded(platform, body)
-    return '\n'.join(lines + ['  return result;', '}', ''])
+    return '\n'.join(lines + ['    return result;', '}', ''])
