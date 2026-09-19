@@ -121,3 +121,21 @@ def test_generated_input_checks_precede_dispatch(platform):
     assert 'if (!(n > 0))' in code
     assert 'ffi::Error::InvalidArgument("Invalid \\"n\\"")' in code
     assert code.index('if (!(n > 0))') < code.index('const auto it =')
+
+
+@pytest.mark.parametrize("platform", ["cpu", "cuda"])
+def test_template_attribute_can_keep_external_name(platform):
+    from jax_ffi_gen.parse import ParamInfo
+    fn = FunctionInfo(name="Example", par={}, platform=platform,
+        template_par={"Order": TemplateParamInfo(type="int", name="Order",
+                       instances=(1, 2), attribute_name="order")})
+    if platform == "cuda":
+        fn.par["stream"] = ParamInfo(type="cudaStream_t", name="stream")
+    code = create_ffi_call(fn)
+    assert '.Attr<int>("order")' in code
+    assert '.Attr<int>("Order")' not in code
+    assert "int Order" in code
+    wrapper = code.split("ExampleDispatchWrapper(")[1].split(") {")[0]
+    assert "int Order" not in wrapper  # dispatch-only choice, no runtime argument
+    fn.template_par["Order"].attribute_name = ""
+    assert '.Attr<int>("Order")' in create_ffi_call(fn)

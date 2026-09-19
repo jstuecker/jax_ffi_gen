@@ -96,3 +96,9 @@ Each pair contains a C++ boolean expression and a failure message. Checks run
 after inferred parameters are computed, before dispatch and execution; failure
 returns `ffi::Error::InvalidArgument`. Expressions may reference FFI buffers,
 attributes and inferred parameters, but not the later dispatch constants.
+
+A template parameter can receive an FFI attribute directly, without adding a
+redundant runtime argument to the native function. Set
+`TemplateParamInfo.attribute_name="order"` to keep a Python attribute named
+`order` while the C++ template parameter is named `Order`. With no override,
+the attribute uses the template parameter's name as before.

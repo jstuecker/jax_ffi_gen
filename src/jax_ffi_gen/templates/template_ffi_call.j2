@@ -237,7 +237,7 @@ XLA_FFI_DEFINE_HANDLER_SYMBOL(
 {%- endfor %}
 {%- for p in f.template_par.values() %}
     {%- if not p.expression and not p.dtype_from_buffer %}
-        .Attr<{{p.ctype()}}>("{{ p.name }}")
+        .Attr<{{p.ctype()}}>("{{ p.attribute_name or p.name }}")
     {%- endif %}
 {%- endfor %}
 {%- if f.is_kernel and not f.grid_size_expression %}

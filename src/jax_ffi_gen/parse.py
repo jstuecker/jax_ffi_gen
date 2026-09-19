@@ -54,6 +54,7 @@ class TemplateParamInfo():
     instances : list[str] = ()
     expression : str = ""
     dtype_from_buffer : str = ""  # Buffer parameter name to extract dtype from
+    attribute_name: str = ""  # Optional FFI name when supplied as an attribute
 
     def ctype(self):
         """Return the C type for dispatch tuples (DT for typename, type otherwise)"""
