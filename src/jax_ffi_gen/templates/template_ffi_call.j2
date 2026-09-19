@@ -1,6 +1,6 @@
 {%- set sep = joiner(",") -%}
 {%- macro dispatch_params() -%}
-    cudaStream_t stream{% if f.par %},{% endif %}
+    {% if f.platform == "cuda" %}cudaStream_t stream{% if f.par %},{% endif %}{% endif %}
 {%- for p in f.par %}
     {%- if p.is_ptr %}
     {{ "const " if p.is_const else "" }}void* {{ p.name }}{% if not loop.last %},{% endif %}
@@ -24,7 +24,7 @@
 
 
 {%- macro wrapper_call_args() -%}
-        stream{% if f.par %},{% endif %}
+        {% if f.platform == "cuda" %}stream{% if f.par %},{% endif %}{% endif %}
 {%- for p in f.par %}
         {%- if p.is_ptr %}
         reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }}*>({{ p.name }}){% if not loop.last %},{% endif %}
@@ -43,7 +43,7 @@
 {%- endmacro -%}
 
 {%- macro direct_call_args() -%}
-        stream{% if f.par %},{% endif %}
+        {% if f.platform == "cuda" %}stream{% if f.par %},{% endif %}{% endif %}
 {%- for p in f.par %}
         {%- if p.is_ptr %}
         reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }}*>({{ get_ptr_data(p) }}){% if not loop.last %},{% endif %}
@@ -54,7 +54,7 @@
 {%- endmacro -%}
 
 {%- macro instance_call_args() -%}
-        stream{% if f.par %},{% endif %}
+        {% if f.platform == "cuda" %}stream{% if f.par %},{% endif %}{% endif %}
 {%- for p in f.par %}
         {%- if p.is_ptr %}
         {{ get_ptr_data(p) }}{% if not loop.last %},{% endif %}
@@ -87,8 +87,8 @@ static {{ f.type }} {{ f.name }}DispatchWrapper(
 }
 
 {% endif %}
-ffi::Error {{ f.name }}FFIHost({{ sep() }}
-    cudaStream_t stream
+ffi::Error {{ f.name }}FFIHost({% if f.platform == "cuda" %}{{ sep() }}
+    cudaStream_t stream{% endif %}
 {%- for p in f.par -%}
         {%- if p.is_ptr -%}
             {%- if p.is_const -%}{{ sep() }}
@@ -206,17 +206,19 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     {%- endif %}
 {%- endif %}
 
+    {% if f.platform == "cuda" %}
     cudaError_t last_error = cudaGetLastError();
     if (last_error != cudaSuccess) {
         return ffi::Error::Internal(std::string("CUDA error: ") + cudaGetErrorString(last_error));
     }
+    {% endif %}
     return ffi::Error::Success();
 }
 
 XLA_FFI_DEFINE_HANDLER_SYMBOL(
     {{ f.name }}FFI, {{ f.name }}FFIHost,
     ffi::Ffi::Bind()
-        .Ctx<ffi::PlatformStream<cudaStream_t>>()
+        {% if f.platform == "cuda" %}.Ctx<ffi::PlatformStream<cudaStream_t>>(){% endif %}
 {%- for p in f.par %}
         {%- if p.is_ptr %}
             {%- if p.is_const %}

@@ -9,9 +9,13 @@ env = Environment(
 )
 
 def simplify_and_validate(func: FunctionInfo) -> FunctionInfo:
-    if not func.is_kernel:
+    if func.platform not in ("cuda", "cpu"):
+        raise ValueError(f"Unknown platform: {func.platform}")
+    if func.platform == "cpu" and func.is_kernel:
+        raise ValueError("CPU generation requires a host function")
+    if not func.is_kernel and func.platform == "cuda":
         assert tuple(func.par.keys())[0] == "stream", "All Host functions must use stream as first parameter"
-        del func.par["stream"] # will be added automatically
+        func = replace(func, par={k: v for k, v in func.par.items() if k != "stream"})
 
     # convert pars to lists for easier templating
     func = replace(

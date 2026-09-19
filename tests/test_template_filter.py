@@ -67,3 +67,24 @@ def test_template_filter_cannot_remove_every_combination():
 
     with pytest.raises(ValueError, match="removed every template combination"):
         function.template_values_flat()
+
+
+@pytest.mark.parametrize("platform", ["cpu", "cuda"])
+def test_host_generation_is_repeatable_and_selects_platform(tmp_path, platform):
+    from jax_ffi_gen.parse import get_functions_from_file
+    source = tmp_path / 'host.cuh'
+    stream = 'cudaStream_t stream, ' if platform == 'cuda' else ''
+    source.write_text(f'template<typename T> void Scale({stream}const T *x, T *y, const int n) {{}}')
+    fn = get_functions_from_file(str(source), only_kernels=False)['Scale']
+    fn.platform = platform
+    fn.par['n'].expression = 'x.element_count()'
+    fn.template_par['T'].instances = ('float', 'double')
+    fn.template_par['T'].expression = 'x.element_type()'
+    code = create_ffi_call(fn)
+    assert create_ffi_call(fn) == code
+    assert ('cudaStream_t' in code) == (platform == 'cuda')
+    assert ('cudaGetLastError' in code) == (platform == 'cuda')
+    assert '&ScaleDispatchWrapper<float>' in code
+    assert '&ScaleDispatchWrapper<double>' in code
+    # Trailing comments must not swallow the comma before handler traits.
+    assert '.Ret<ffi::AnyBuffer>() /* y */,' in code
