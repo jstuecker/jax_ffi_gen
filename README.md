@@ -57,3 +57,30 @@ parsing. They have no CUDA stream parameter; generation omits stream binding,
 CUDA launch/error handling, and otherwise uses the same template dispatch and
 buffer expressions. CUDA remains the default. Generated CPU files need only the
 XLA FFI headers and the application's ordinary C++ includes.
+
+### Registration for optional backends
+
+For handlers compiled in separate translation units, generate a nanobind
+registration table from the same function descriptions:
+
+```python
+code = generator.create_ffi_registration_code(
+    [(cpu_function, "my_operation"), (cuda_function, "my_operation")],
+    platform_guards={"cuda": "ENABLE_CUDA"},
+)
+```
+
+Include the resulting code in the module and export
+`m.def("registrations", &FFIRegistrations)`. Python can register every available
+implementation once:
+
+```python
+for platform, targets in extension.registrations().items():
+    for name, capsule in targets.items():
+        jax.ffi.register_ffi_target(name, capsule, platform=platform)
+```
+
+One `jax.ffi.ffi_call("my_operation", ...)` then works on either platform.
+The guard excludes CUDA declarations and references from CPU-only builds; the
+registration header itself requires no CUDA headers. Guards must be defined
+only for enabled platforms. Duplicate names within one platform are rejected.

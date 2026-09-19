@@ -88,3 +88,21 @@ def test_host_generation_is_repeatable_and_selects_platform(tmp_path, platform):
     assert '&ScaleDispatchWrapper<double>' in code
     # Trailing comments must not swallow the comma before handler traits.
     assert '.Ret<ffi::AnyBuffer>() /* y */,' in code
+
+
+def test_registration_groups_platforms_and_guards_optional_cuda():
+    from dataclasses import replace
+    from jax_ffi_gen.generator import create_ffi_registration_code
+    cpu = replace(make_function(), name='ScaleCPU', platform='cpu')
+    cuda = replace(cpu, name='ScaleCUDA', platform='cuda')
+    code = create_ffi_registration_code([(cpu, 'scale'), (cuda, 'scale')],
+                                         {'cuda': 'ENABLE_CUDA'})
+    assert code.count('#ifdef ENABLE_CUDA') == 2
+    assert 'result["cpu"]' in code and 'result["CUDA"]' in code
+    # Every CUDA symbol reference must disappear in a CPU-only build.
+    import re
+    cpu_code = re.sub(r'#ifdef ENABLE_CUDA.*?#endif', '', code, flags=re.S)
+    assert 'ScaleCUDA' not in cpu_code and 'cuda_runtime' not in cpu_code
+    assert '&ScaleCPUFFI' in cpu_code
+    with pytest.raises(ValueError, match='Duplicate FFI target'):
+        create_ffi_registration_code([(cpu, 'scale'), (cpu, 'scale')])
