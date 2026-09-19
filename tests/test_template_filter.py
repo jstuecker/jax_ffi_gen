@@ -106,3 +106,18 @@ def test_registration_groups_platforms_and_guards_optional_cuda():
     assert '&ScaleCPUFFI' in cpu_code
     with pytest.raises(ValueError, match='Duplicate FFI target'):
         create_ffi_registration_code([(cpu, 'scale'), (cpu, 'scale')])
+
+
+@pytest.mark.parametrize("platform", ["cpu", "cuda"])
+def test_generated_input_checks_precede_dispatch(platform):
+    fn = make_function()
+    fn.platform = platform
+    fn.is_kernel = False
+    if platform == "cuda":
+        from jax_ffi_gen.parse import ParamInfo
+        fn.par = {"stream": ParamInfo(type="cudaStream_t", name="stream")}
+    fn.checks = (("n > 0", 'Invalid "n"'),)
+    code = create_ffi_call(fn)
+    assert 'if (!(n > 0))' in code
+    assert 'ffi::Error::InvalidArgument("Invalid \\"n\\"")' in code
+    assert code.index('if (!(n > 0))') < code.index('const auto it =')

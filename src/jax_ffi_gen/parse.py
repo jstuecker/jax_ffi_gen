@@ -82,6 +82,7 @@ class FunctionInfo():
     grid_size_expression : str = ""
     smem_size_expression : str = ""
     init_outputs_zero : bool = False
+    checks: tuple[tuple[str, str], ...] = ()  # (C++ condition, failure message)
     template_filter : Callable[..., bool] | None = None
 
     def template_values_flat(self):

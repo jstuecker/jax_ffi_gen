@@ -117,6 +117,11 @@ ffi::Error {{ f.name }}FFIHost({% if f.platform == "cuda" %}{{ sep() }}
     {{ p.type }} {{ p.name }} = {{ p.expression -}};
     {%- endif -%}
 {%- endfor %}
+{%- for condition, message in f.checks %}
+    if (!({{ condition }})) {
+        return ffi::Error::InvalidArgument({{ message | tojson }});
+    }
+{%- endfor %}
 {%- for p in f.template_par.values() -%}
     {%- if p.expression %}
     {{ p.ctype() }} {{ p.name }} = {{ p.expression -}};

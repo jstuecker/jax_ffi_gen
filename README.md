@@ -84,3 +84,15 @@ One `jax.ffi.ffi_call("my_operation", ...)` then works on either platform.
 The guard excludes CUDA declarations and references from CPU-only builds; the
 registration header itself requires no CUDA headers. Guards must be defined
 only for enabled platforms. Duplicate names within one platform are rejected.
+
+Optional `FunctionInfo.checks` keep input validation in the generated adapter,
+so the wrapped implementation need not depend on JAX error types:
+
+```python
+function.checks = (("n > 0", "Expected a positive size"),)
+```
+
+Each pair contains a C++ boolean expression and a failure message. Checks run
+after inferred parameters are computed, before dispatch and execution; failure
+returns `ffi::Error::InvalidArgument`. Expressions may reference FFI buffers,
+attributes and inferred parameters, but not the later dispatch constants.
