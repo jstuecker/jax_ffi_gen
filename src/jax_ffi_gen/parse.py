@@ -128,7 +128,8 @@ CUDA = Language(tree_sitter_cuda.language())
 parser = Parser(CUDA)
 
 def node_text(node: Node, txt: str) -> str:
-    return txt[node.start_byte:node.end_byte]
+    # Tree-sitter offsets count UTF-8 bytes, not Python string characters.
+    return node.text.decode("utf-8")
 
 def query(node: Node, query_src: str) -> dict:
     q = QueryCursor(Query(CUDA, query_src))
@@ -227,7 +228,7 @@ def get_functions(node: Node, txt: str, skip_device=True) -> dict[str, FunctionI
     return res
 
 def build_tree_sitter(file_path: str) -> tuple[Tree, str]:
-    with open(file_path, 'r') as f:
+    with open(file_path, 'r', encoding='utf-8') as f:
         txt = f.read()
     tree = parser.parse(txt.encode())
     return tree, txt
