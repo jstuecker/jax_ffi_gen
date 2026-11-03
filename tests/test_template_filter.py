@@ -145,3 +145,22 @@ def test_template_attribute_can_keep_external_name(platform):
     assert "int Order" not in wrapper  # dispatch-only choice, no runtime argument
     fn.template_par["Order"].attribute_name = ""
     assert '.Attr<int>("Order")' in create_ffi_call(fn)
+
+
+def test_new_options_preserve_positional_function_construction():
+    # Existing callers can still pass the template map as the fifth argument.
+    from jax_ffi_gen.parse import ParamInfo
+    function = FunctionInfo("Scale", {"stream": ParamInfo(type="cudaStream_t", name="stream")},
+                            "void", False, {})
+    assert function.platform == "cuda" and function.checks == ()
+    assert "cudaStream_t stream" in create_ffi_call(function)
+
+
+@pytest.mark.parametrize("platform,is_kernel,message", [
+    ("invalid", False, "Unknown platform"),
+    ("cpu", True, "CPU generation requires a host function"),
+])
+def test_invalid_platform_or_cpu_kernel_is_rejected(platform, is_kernel, message):
+    function = FunctionInfo("Invalid", {}, platform=platform, is_kernel=is_kernel)
+    with pytest.raises(ValueError, match=message):
+        create_ffi_call(function)

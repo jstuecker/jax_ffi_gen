@@ -58,6 +58,16 @@ CUDA launch/error handling, and otherwise uses the same template dispatch and
 buffer expressions. CUDA remains the default. Generated CPU files need only the
 XLA FFI headers and the application's ordinary C++ includes.
 
+```python
+functions = parse.get_functions_from_file("host.cc", only_kernels=False)
+for function in functions.values():
+    function.platform = "cpu"
+generator.generate_ffi_module_file("generated_cpu.cc", functions, includes=("host.cc",))
+```
+
+The same parsed function description can be generated repeatedly; generation
+leaves its native CUDA stream parameter available for subsequent calls.
+
 ### Registration for optional backends
 
 For handlers compiled in separate translation units, generate a nanobind

@@ -77,13 +77,13 @@ class FunctionInfo():
     par : dict[str, ParamInfo]
     type : str = "void"
     is_kernel : bool = False
-    platform: str = "cuda"  # CPU host functions have no stream argument
+    platform: str = field(default="cuda", kw_only=True)  # CPU host functions have no stream
     template_par : list[str, ParamInfo] = field(default_factory=dict)
     block_size_expression : str = ""
     grid_size_expression : str = ""
     smem_size_expression : str = ""
     init_outputs_zero : bool = False
-    checks: tuple[tuple[str, str], ...] = ()  # (C++ condition, failure message)
+    checks: tuple[tuple[str, str], ...] = field(default=(), kw_only=True)  # (condition, message)
     template_filter : Callable[..., bool] | None = None
 
     def template_values_flat(self):
