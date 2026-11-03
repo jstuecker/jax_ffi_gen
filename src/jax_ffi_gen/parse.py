@@ -54,6 +54,7 @@ class TemplateParamInfo():
     instances : list[str] = ()
     expression : str = ""
     dtype_from_buffer : str = ""  # Buffer parameter name to extract dtype from
+    attribute_name: str = ""  # Optional FFI name when supplied as an attribute
 
     def ctype(self):
         """Return the C type for dispatch tuples (DT for typename, type otherwise)"""
@@ -76,11 +77,13 @@ class FunctionInfo():
     par : dict[str, ParamInfo]
     type : str = "void"
     is_kernel : bool = False
+    platform: str = field(default="cuda", kw_only=True)  # CPU host functions have no stream
     template_par : list[str, ParamInfo] = field(default_factory=dict)
     block_size_expression : str = ""
     grid_size_expression : str = ""
     smem_size_expression : str = ""
     init_outputs_zero : bool = False
+    checks: tuple[tuple[str, str], ...] = field(default=(), kw_only=True)  # (condition, message)
     template_filter : Callable[..., bool] | None = None
 
     def template_values_flat(self):

@@ -33,13 +33,15 @@ def test_source_comments_preserve_function_and_parameter_names(tmp_path, comment
 
 
 @pytest.mark.parametrize("is_const", [False, True])
-def test_buffer_only_binding_keeps_comma_before_traits(is_const):
+@pytest.mark.parametrize("platform", ["cpu", "cuda"])
+def test_buffer_only_binding_keeps_comma_before_traits(is_const, platform):
     function = FunctionInfo(
         name="Kernel",
         par={"buffer": ParamInfo(
             type="float", name="buffer", is_ptr=True, is_const=is_const
         )},
-        is_kernel=True,
+        is_kernel=platform == "cuda",
+        platform=platform,
         grid_size_expression="1",
         block_size_expression="32",
     )

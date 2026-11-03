@@ -1,37 +1,26 @@
 {%- set sep = joiner(",") -%}
 {%- macro dispatch_params() -%}
-    cudaStream_t stream{% if f.par %},{% endif %}
-{%- for p in f.par %}
-    {%- if p.is_ptr %}
-    {{ "const " if p.is_const else "" }}void* {{ p.name }}{% if not loop.last %},{% endif %}
-    {%- else %}
-    {{ p.type }} {{ p.name }}{% if not loop.last %},{% endif %}
-    {%- endif %}
-{%- endfor %}
+{%- set comma = joiner(",") -%}
+{%- if f.platform == "cuda" -%}{{ comma() }}{{ "\n    " }}cudaStream_t stream{%- endif -%}
+{%- for p in f.par -%}{{ comma() }}{{ "\n    " }}
+{{- ("const " if p.is_const else "") ~ "void *" if p.is_ptr else p.type ~ " " }}{{ p.name }}
+{%- endfor -%}
 {%- endmacro -%}
 
 {%- macro template_params(format='values') -%}
 {%- for p in f.template_par.values() -%}
-{%- if format == 'decl' -%}
-{{ p.type }} {{ p.name }}
-{%- else -%}
-{{ p.name }}
-{%- endif -%}
-{{ ", " if not loop.last else "" }}
+{{ p.type ~ " " if format == 'decl' else "" }}{{ p.name }}{{ ", " if not loop.last else "" }}
 {%- endfor -%}
 {%- endmacro -%}
 
-
-
 {%- macro wrapper_call_args() -%}
-        stream{% if f.par %},{% endif %}
-{%- for p in f.par %}
-        {%- if p.is_ptr %}
-        reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }}*>({{ p.name }}){% if not loop.last %},{% endif %}
-        {%- else %}
-        {{ p.name }}{% if not loop.last %},{% endif %}
-        {%- endif %}
-{%- endfor %}
+{%- set comma = joiner(",") -%}
+{%- if f.platform == "cuda" -%}{{ comma() }}{{ "\n        " }}stream{%- endif -%}
+{%- for p in f.par -%}{{ comma() }}{{ "\n        " }}
+{%- if p.is_ptr -%}
+reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }} *>({{ p.name }})
+{%- else -%}{{ p.name }}{%- endif -%}
+{%- endfor -%}
 {%- endmacro -%}
 
 {%- macro get_ptr_data(p) -%}
@@ -43,41 +32,50 @@
 {%- endmacro -%}
 
 {%- macro direct_call_args() -%}
-        stream{% if f.par %},{% endif %}
-{%- for p in f.par %}
-        {%- if p.is_ptr %}
-        reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }}*>({{ get_ptr_data(p) }}){% if not loop.last %},{% endif %}
-        {%- else %}
-        {{ p.name }}{% if not loop.last %},{% endif %}
-        {%- endif %}
-{%- endfor %}
+{%- set comma = joiner(",") -%}
+{%- if f.platform == "cuda" -%}{{ comma() }}{{ "\n        " }}stream{%- endif -%}
+{%- for p in f.par -%}{{ comma() }}{{ "\n        " }}
+{%- if p.is_ptr -%}
+reinterpret_cast<{{ "const " if p.is_const else "" }}{{ p.type }} *>(
+            {{ get_ptr_data(p) }}
+        )
+{%- else -%}{{ p.name }}{%- endif -%}
+{%- endfor -%}
 {%- endmacro -%}
 
 {%- macro instance_call_args() -%}
-        stream{% if f.par %},{% endif %}
-{%- for p in f.par %}
-        {%- if p.is_ptr %}
-        {{ get_ptr_data(p) }}{% if not loop.last %},{% endif %}
-        {%- else %}
-        {{ p.name }}{% if not loop.last %},{% endif %}
-        {%- endif %}
-{%- endfor %}
+{%- set comma = joiner(",") -%}
+{%- if f.platform == "cuda" -%}{{ comma() }}{{ "\n        " }}stream{%- endif -%}
+{%- for p in f.par -%}{{ comma() }}{{ "\n        " }}
+{%- if p.is_ptr -%}
+{{ get_ptr_data(p) }}
+{%- else -%}{{ p.name }}{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro assignment(type, name, expression) -%}
+{%- set prefix = "    " ~ type ~ " " ~ name ~ " = " -%}
+{%- if "\n" not in expression and (prefix|length + expression|length + 1) <= 100 -%}
+{{ prefix }}{{ expression }};
+{%- else -%}
+{{ prefix.rstrip() }}{{ "\n        " }}{{ expression | indent(8) }};
+{%- endif -%}
 {%- endmacro -%}
 
 {% if not f.is_kernel and f.template_par %}
-using {{ f.name }}DispatchFn = {{ f.type }} (*) (
+using {{ f.name }}DispatchFn = {{ f.type }} (*)(
 {{- dispatch_params() }}
 );
-template<{{- template_params('decl') -}}>
+template <{{- template_params('decl') -}}>
 static {{ f.type }} {{ f.name }}DispatchWrapper(
 {{- dispatch_params() }}
 ) {
     {%- if f.type != "void" %}
-    return {{ f.name }}<{{- template_params('values') -}}> (
+    return {{ f.name }}<{{- template_params('values') -}}>(
 {{- wrapper_call_args() }}
     );
     {%- else %}
-    {{ f.name }}<{{- template_params('values') -}}> (
+    {{ f.name }}<{{- template_params('values') -}}>(
 {{- wrapper_call_args() }}
     );
     {%- endif -%}
@@ -86,9 +84,10 @@ static {{ f.type }} {{ f.name }}DispatchWrapper(
     {%- endif %}
 }
 
-{% endif %}
-ffi::Error {{ f.name }}FFIHost({{ sep() }}
-    cudaStream_t stream
+{%- endif %}
+
+ffi::Error {{ f.name }}FFIHost({% if f.platform == "cuda" %}{{ sep() }}
+    cudaStream_t stream{% endif %}
 {%- for p in f.par -%}
         {%- if p.is_ptr -%}
             {%- if p.is_const -%}{{ sep() }}
@@ -114,12 +113,20 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
 ) {
 {%- for p in f.par -%}
     {%- if not p.is_ptr and p.expression %}
-    {{ p.type }} {{ p.name }} = {{ p.expression -}};
+{{ assignment(p.type, p.name, p.expression) }}
     {%- endif -%}
 {%- endfor %}
+{%- for condition, message in f.checks %}
+{{ "\n" }}    if (!(
+        {{ condition | indent(8) }}
+    )) {
+        return ffi::Error::InvalidArgument({{ message | tojson }});
+    }
+{%- endfor %}
+{{ "\n" if f.checks else "" }}
 {%- for p in f.template_par.values() -%}
     {%- if p.expression %}
-    {{ p.ctype() }} {{ p.name }} = {{ p.expression -}};
+{{ assignment(p.ctype(), p.name, p.expression) }}
     {%- endif -%}
 {%- endfor %}
 
@@ -159,7 +166,7 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
 
     {%- if f.template_par %}
 
-{% include "template_instancing.j2" %}
+{%- include "template_instancing.j2" %}
     {%- else %}
     const void* instance = (const void*){{f.name}};
     {%- endif %}
@@ -175,7 +182,7 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
 {%- else -%}
     {%- if f.template_par %}
 
-{% include "template_instancing.j2" %}
+{%- include "template_instancing.j2" %}
     {%- endif %}
 
     // Now call our function
@@ -194,11 +201,13 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     {%- endif %}
 
     {%- if f.type == "std::string" %}
+
     // Check if the function returned an error string
     if (!result.empty()) {
         return ffi::Error::Internal(result);
     }
     {%- elif f.type == "ffi::Error" %}
+
     // Check if the function returned an error
     if (!result.success()) {
         return result;
@@ -206,17 +215,24 @@ ffi::Error {{ f.name }}FFIHost({{ sep() }}
     {%- endif %}
 {%- endif %}
 
+    {%- if f.platform == "cuda" %}
+
     cudaError_t last_error = cudaGetLastError();
     if (last_error != cudaSuccess) {
         return ffi::Error::Internal(std::string("CUDA error: ") + cudaGetErrorString(last_error));
     }
+    {%- endif %}
+
     return ffi::Error::Success();
 }
 
 XLA_FFI_DEFINE_HANDLER_SYMBOL(
-    {{ f.name }}FFI, {{ f.name }}FFIHost,
+    {{ f.name }}FFI,
+    {{ f.name }}FFIHost,
     ffi::Ffi::Bind()
+{%- if f.platform == "cuda" %}
         .Ctx<ffi::PlatformStream<cudaStream_t>>()
+{%- endif %}
 {%- for p in f.par %}
         {%- if p.is_ptr %}
             {%- if p.is_const %}
@@ -230,7 +246,7 @@ XLA_FFI_DEFINE_HANDLER_SYMBOL(
 {%- endfor %}
 {%- for p in f.template_par.values() %}
     {%- if not p.expression and not p.dtype_from_buffer %}
-        .Attr<{{p.ctype()}}>("{{ p.name }}")
+        .Attr<{{p.ctype()}}>("{{ p.attribute_name or p.name }}")
     {%- endif %}
 {%- endfor %}
 {%- if f.is_kernel and not f.grid_size_expression %}

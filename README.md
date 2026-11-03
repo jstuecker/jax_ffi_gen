@@ -51,3 +51,70 @@ generator.generate_ffi_module_file(
 ```
 
 Template filtering requires **jax-ffi-gen 0.6.1 or newer** when installing from PyPI (the 0.6.0 archives omitted the required templates). The filter receives each combination of template parameter values as keyword arguments and must return a Python `bool`. Only retained combinations are instantiated and included in the generated dispatch; at least one combination must remain. This can reduce CUDA compilation time and binary size when only part of the template matrix is needed.
+
+CPU host functions are supported by setting `function.platform = "cpu"` after
+parsing. They have no CUDA stream parameter; generation omits stream binding,
+CUDA launch/error handling, and otherwise uses the same template dispatch and
+buffer expressions. CUDA remains the default. Generated CPU files need only the
+XLA FFI headers and the application's ordinary C++ includes.
+
+```python
+functions = parse.get_functions_from_file("host.cc", only_kernels=False)
+for function in functions.values():
+    function.platform = "cpu"
+generator.generate_ffi_module_file("generated_cpu.cc", functions, includes=("host.cc",))
+```
+
+The same parsed function description can be generated repeatedly; generation
+leaves its native CUDA stream parameter available for subsequent calls.
+
+### Registration for optional backends
+
+For handlers compiled in separate translation units, generate a nanobind
+registration table from the same function descriptions:
+
+```python
+code = generator.create_ffi_registration_code(
+    [(cpu_function, "my_operation"), (cuda_function, "my_operation")],
+    platform_guards={"cuda": "ENABLE_CUDA"},
+)
+```
+
+Include the resulting code in the module and export
+`m.def("registrations", &FFIRegistrations)`. Python can register every available
+implementation once:
+
+```python
+for platform, targets in extension.registrations().items():
+    for name, capsule in targets.items():
+        jax.ffi.register_ffi_target(name, capsule, platform=platform)
+```
+
+One `jax.ffi.ffi_call("my_operation", ...)` then works on either platform.
+The guard excludes CUDA declarations and references from CPU-only builds; the
+registration header itself requires no CUDA headers. Guards must be defined
+only for enabled platforms. Duplicate names within one platform are rejected.
+
+Optional `FunctionInfo.checks` keep input validation in the generated adapter,
+so the wrapped implementation need not depend on JAX error types:
+
+```python
+function.checks = (("n > 0", "Expected a positive size"),)
+```
+
+Each pair contains a C++ boolean expression and a failure message. Checks run
+after inferred parameters are computed, before dispatch and execution; failure
+returns `ffi::Error::InvalidArgument`. Expressions may reference FFI buffers,
+attributes and inferred parameters, but not the later dispatch constants.
+
+A template parameter can receive an FFI attribute directly, without adding a
+redundant runtime argument to the native function. Set
+`TemplateParamInfo.attribute_name="order"` to keep a Python attribute named
+`order` while the C++ template parameter is named `Order`. With no override,
+the attribute uses the template parameter's name as before.
+
+Generated C++/CUDA layout is emitted directly by the Jinja templates, using
+four-space indentation and a 100-column target. No external formatter is
+required. Caller-supplied C++ expressions may contain newlines for readability;
+they are indented in the generated body without rewriting their contents.
+Long diagnostic strings may exceed the column target.
