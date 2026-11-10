@@ -55,3 +55,12 @@ def test_buffer_only_binding_keeps_comma_before_traits(is_const, platform):
         r"\{xla::ffi::Traits::kCmdBufferCompatible\}",
         binding,
     )
+def test_requested_functions_skip_unrelated_reference_parameters(tmp_path):
+    from jax_ffi_gen.parse import get_functions_from_file
+
+    source = tmp_path / "helpers.cc"
+    source.write_text("void Helper(int &count) {}\nvoid Entry(const float *x, float *out) {}")
+    functions = get_functions_from_file(str(source), names=["Entry"], only_kernels=False)
+    assert list(functions) == ["Entry"]
+    assert list(functions["Entry"].par) == ["x", "out"]
+

@@ -194,7 +194,7 @@ def interprete_template_list(node_param: Node, txt: str) -> dict[str, TemplatePa
 
     return res
 
-def get_functions(node: Node, txt: str, skip_device=True) -> dict[str, FunctionInfo]:
+def get_functions(node: Node, txt: str, skip_device=True, names=None) -> dict[str, FunctionInfo]:
     query_func = f"""
         (function_definition
             ("__device__")? @fdevice
@@ -211,6 +211,8 @@ def get_functions(node: Node, txt: str, skip_device=True) -> dict[str, FunctionI
     res = {}
     for i,match in cursor.matches(node):
         if skip_device and (match.get("fdevice") is not None):
+            continue
+        if names is not None and node_text(match["fname"][0], txt) not in names:
             continue
 
         if (not "ftemp" in match) and () :
@@ -239,7 +241,7 @@ def build_tree_sitter(file_path: str) -> tuple[Tree, str]:
 def get_functions_from_file(file_path: str, only_kernels: bool = True, names: tuple[str] = None
                             ) -> dict[str, FunctionInfo]:
     tree, txt = build_tree_sitter(file_path)
-    funcs = get_functions(tree.root_node, txt)
+    funcs = get_functions(tree.root_node, txt, names=names)
     
     if only_kernels:
         funcs = {k:v for k,v in funcs.items() if v.is_kernel}
