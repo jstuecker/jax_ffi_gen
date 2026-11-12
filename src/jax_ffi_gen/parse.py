@@ -140,6 +140,16 @@ def query(node: Node, query_src: str) -> dict:
 
     return caps
 
+class _UnsupportedReferenceParameter(ValueError):
+    """A reference has no supported conversion to an FFI argument."""
+
+
+def _has_reference_declarator(node):
+    return node.type == "reference_declarator" or any(
+        _has_reference_declarator(child) for child in node.named_children
+    )
+
+
 def interprete_parameter_list(node_param: Node, txt: str) -> dict[str, ParamInfo]:
     assert node_param.type == "parameter_list"
 
@@ -157,6 +167,11 @@ def interprete_parameter_list(node_param: Node, txt: str) -> dict[str, ParamInfo
         pinfo.type = node_text(c.child_by_field_name("type"), txt)
 
         decl = c.child_by_field_name("declarator")
+        if _has_reference_declarator(decl):
+            raise _UnsupportedReferenceParameter(
+                f"parameter {node_text(c, txt)!r} uses a C++ reference; "
+                "reference parameters are not supported by FFI bindings"
+            )
         if decl.type == "identifier":
             pinfo.name = node_text(decl, txt)
         elif decl.type == "pointer_declarator":
@@ -194,7 +209,8 @@ def interprete_template_list(node_param: Node, txt: str) -> dict[str, TemplatePa
 
     return res
 
-def get_functions(node: Node, txt: str, skip_device=True) -> dict[str, FunctionInfo]:
+def get_functions(node: Node, txt: str, skip_device=True, names=None,
+                  only_kernels=False) -> dict[str, FunctionInfo]:
     query_func = f"""
         (function_definition
             ("__device__")? @fdevice
@@ -212,12 +228,24 @@ def get_functions(node: Node, txt: str, skip_device=True) -> dict[str, FunctionI
     for i,match in cursor.matches(node):
         if skip_device and (match.get("fdevice") is not None):
             continue
+        if only_kernels and match.get("fglobal") is None:
+            continue
+        name = node_text(match["fname"][0], txt)
+        if names is not None and name not in names:
+            continue
+
+        try:
+            parameters = interprete_parameter_list(match["fparam"][0], txt)
+        except _UnsupportedReferenceParameter as error:
+            if names is not None:
+                raise ValueError(f"Cannot bind function {name!r}: {error}") from error
+            continue
 
         if (not "ftemp" in match) and () :
             print("template function")
         new_func = FunctionInfo(
-            name = node_text(match["fname"][0], txt),
-            par = interprete_parameter_list(match["fparam"][0], txt),
+            name = name,
+            par = parameters,
             type = node_text(match["ftype"][0], txt),
             is_kernel = match.get("fglobal") is not None
         )
@@ -239,10 +267,7 @@ def build_tree_sitter(file_path: str) -> tuple[Tree, str]:
 def get_functions_from_file(file_path: str, only_kernels: bool = True, names: tuple[str] = None
                             ) -> dict[str, FunctionInfo]:
     tree, txt = build_tree_sitter(file_path)
-    funcs = get_functions(tree.root_node, txt)
-    
-    if only_kernels:
-        funcs = {k:v for k,v in funcs.items() if v.is_kernel}
+    funcs = get_functions(tree.root_node, txt, names=names, only_kernels=only_kernels)
 
     if names is not None:
         funcs = {k:v for k,v in funcs.items() if k in names}

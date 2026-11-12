@@ -55,3 +55,50 @@ def test_buffer_only_binding_keeps_comma_before_traits(is_const, platform):
         r"\{xla::ffi::Traits::kCmdBufferCompatible\}",
         binding,
     )
+def test_requested_functions_skip_unrelated_reference_parameters(tmp_path):
+    from jax_ffi_gen.parse import get_functions_from_file
+
+    source = tmp_path / "helpers.cc"
+    source.write_text("void Helper(int &count) {}\nvoid Entry(const float *x, float *out) {}")
+    functions = get_functions_from_file(str(source), names=["Entry"], only_kernels=False)
+    assert list(functions) == ["Entry"]
+    assert list(functions["Entry"].par) == ["x", "out"]
+
+
+
+@pytest.mark.parametrize("only_kernels,names,expected", [
+    (True, None, ["Kernel"]),
+    (True, ("Kernel",), ["Kernel"]),
+    (False, ("Entry",), ["Entry"]),
+])
+def test_function_selection_precedes_parameter_parsing(tmp_path, only_kernels, names, expected):
+    source = tmp_path / "selection.cu"
+    source.write_text(
+        "void HostHelper(int values[2]) {}\n"
+        "__device__ void DeviceHelper(int values[2]) {}\n"
+        "__global__ void Kernel(float *out) {}\n"
+        "void Entry(float *out) {}\n"
+    )
+    functions = get_functions_from_file(str(source), only_kernels=only_kernels, names=names)
+    assert list(functions) == expected
+    assert list(functions[expected[0]].par) == ["out"]
+
+
+@pytest.mark.parametrize("parameter", [
+    "int &count", "const int &count", "int &&count", "int *&count",
+    "int (&count)[2]", "void (&count)(int)",
+])
+def test_reference_parameters_skip_discovery_but_explain_explicit_requests(tmp_path, parameter):
+    source = tmp_path / "references.cc"
+    source.write_text(f"void Helper({parameter}) {{}}\nvoid Entry(float *out) {{}}\n")
+    functions = get_functions_from_file(str(source), only_kernels=False)
+    assert list(functions) == ["Entry"]
+    with pytest.raises(ValueError, match=r"Cannot bind function 'Helper'.*count.*reference"):
+        get_functions_from_file(str(source), only_kernels=False, names=("Helper",))
+
+
+def test_missing_requested_function_still_raises(tmp_path):
+    source = tmp_path / "entry.cc"
+    source.write_text("void Entry(float *out) {}\n")
+    with pytest.raises(ValueError, match="Function Missing not found"):
+        get_functions_from_file(str(source), only_kernels=False, names=("Missing",))

@@ -118,3 +118,16 @@ four-space indentation and a 100-column target. No external formatter is
 required. Caller-supplied C++ expressions may contain newlines for readability;
 they are indented in the generated body without rewriting their contents.
 Long diagnostic strings may exceed the column target.
+
+### Function selection and references
+
+`get_functions_from_file(...)` selects CUDA `__global__` kernels by default.
+Use `only_kernels=False` to include host entry points, and `names=("Entry",)`
+to request specific functions. Device-only functions are excluded by default.
+These selections happen before parameter parsing, so unrelated helpers do not
+need supported FFI signatures.
+
+C++ reference parameters (`T&`, `const T&`, `T&&`) are not supported.
+Automatic discovery skips functions containing them. Explicitly requesting such
+a function raises an error naming the function and reference parameter, rather
+than reporting that the function was not found.
