@@ -45,4 +45,7 @@ NB_MODULE({{ module_name }}, m) {
 {%- for f in functions %}
     m.def("{{ f.name }}", []() { return EncapsulateFfiCall(&{{ f.name }}FFI); });
 {%- endfor %}
+{%- for name, fn in extra_defs.items() %}
+    m.def("{{ name }}", {{ fn }});
+{%- endfor %}
 }

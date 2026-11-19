@@ -50,6 +50,18 @@ generator.generate_ffi_module_file(
 )
 ```
 
+Other functions of the included sources (e.g. host-only helpers that should share the
+module's template instantiations) can be exported with the same module:
+
+```python
+generator.generate_ffi_module_file(
+    output_file = str(HERE / "generated/ffi_new_kernels.cu"),
+    functions = kernels,
+    includes = ["../my_kernels.cuh"],
+    extra_defs = {"scratch_bytes": "&ScratchBytes"} # m.def("scratch_bytes", &ScratchBytes)
+)
+```
+
 Template filtering requires **jax-ffi-gen 0.6.1 or newer** when installing from PyPI (the 0.6.0 archives omitted the required templates). The filter receives each combination of template parameter values as keyword arguments and must return a Python `bool`. Only retained combinations are instantiated and included in the generated dispatch; at least one combination must remain. This can reduce CUDA compilation time and binary size when only part of the template matrix is needed.
 
 CPU host functions are supported by setting `function.platform = "cpu"` after
