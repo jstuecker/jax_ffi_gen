@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from jax_ffi_gen.generator import create_ffi_call
+from jax_ffi_gen.generator import create_ffi_call, create_ffi_module_code
 from jax_ffi_gen.parse import FunctionInfo, ParamInfo, get_functions_from_file
 
 
@@ -102,3 +102,21 @@ def test_missing_requested_function_still_raises(tmp_path):
     source.write_text("void Entry(float *out) {}\n")
     with pytest.raises(ValueError, match="Function Missing not found"):
         get_functions_from_file(str(source), only_kernels=False, names=("Missing",))
+
+
+def test_module_exports_extra_defs():
+    function = FunctionInfo(
+        name="Kernel",
+        par={"buffer": ParamInfo(type="float", name="buffer", is_ptr=True)},
+        is_kernel=True,
+    )
+    plain = create_ffi_module_code([function], module_name="mod")
+    code = create_ffi_module_code(
+        [function], module_name="mod", extra_defs={"scratch_bytes": "&ScratchBytes"}
+    )
+
+    assert code == plain.replace(
+        "EncapsulateFfiCall(&KernelFFI); });\n",
+        "EncapsulateFfiCall(&KernelFFI); });\n"
+        '    m.def("scratch_bytes", &ScratchBytes);\n',
+    )

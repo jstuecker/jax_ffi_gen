@@ -40,7 +40,13 @@ def create_ffi_call(func: FunctionInfo) -> str:
 
 def create_ffi_module_code(funcs: list[FunctionInfo], 
                            includes: tuple[str] = (), 
-                           module_name: str = "ffi_module") -> str:
+                           module_name: str = "ffi_module",
+                           extra_defs: dict[str, str] | None = None) -> str:
+    """Code of a nanobind module exporting the FFI handlers of ``funcs``.
+
+    ``extra_defs`` maps additional Python names to C++ callables (e.g. ``"&MyHostFunction"``),
+    which are exported unchanged with ``m.def``. Their declarations must come from ``includes``.
+    """
     if type(funcs) is dict:
         funcs = list(funcs.values())
 
@@ -49,16 +55,18 @@ def create_ffi_module_code(funcs: list[FunctionInfo],
         new_funcs.append(simplify_and_validate(f))
 
     template = env.get_template("template_ffi_module.j2")
-    return template.render(functions=new_funcs, includes=includes, module_name=module_name)
+    return template.render(functions=new_funcs, includes=includes, module_name=module_name,
+                           extra_defs=extra_defs or {})
 
 def generate_ffi_module_file(output_file: str, 
                              functions: list[FunctionInfo],
                              includes: tuple[str] = (),
-                             module_name: str | None = None) -> None:
+                             module_name: str | None = None,
+                             extra_defs: dict[str, str] | None = None) -> None:
     if module_name is None:
         module_name = output_file.split("/")[-1].split(".")[0]
 
-    code = create_ffi_module_code(functions, includes, module_name)
+    code = create_ffi_module_code(functions, includes, module_name, extra_defs)
 
     if os.path.exists(output_file):
         with open(output_file, 'r') as f:
