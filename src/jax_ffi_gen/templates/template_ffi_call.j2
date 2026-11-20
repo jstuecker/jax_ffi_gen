@@ -254,6 +254,12 @@ XLA_FFI_DEFINE_HANDLER_SYMBOL(
 {%- endif %}
 {%- if f.is_kernel and not f.block_size_expression %}
         .Attr<size_t>("block_size")
-{%- endif %},
-    {xla::ffi::Traits::kCmdBufferCompatible}
+{%- endif %}
+{%- if f.traits %},
+{%- if f.traits | length > 1 %}
+    (std::initializer_list<xla::ffi::Traits>{{ "{" ~ ("xla::ffi::Traits::" ~ f.traits | join(", xla::ffi::Traits::")) ~ "}" }})
+{%- else %}
+    {{ "{" ~ ("xla::ffi::Traits::" ~ f.traits | join(", xla::ffi::Traits::")) ~ "}" }}
+{%- endif %}
+{%- endif %}
 );

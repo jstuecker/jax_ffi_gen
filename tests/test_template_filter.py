@@ -3,7 +3,7 @@ from collections import OrderedDict
 import pytest
 
 from jax_ffi_gen.generator import create_ffi_call
-from jax_ffi_gen.parse import FunctionInfo, TemplateParamInfo
+from jax_ffi_gen.parse import FunctionInfo, ParamInfo, TemplateParamInfo
 
 
 def make_function(template_filter=None):
@@ -21,6 +21,38 @@ def make_function(template_filter=None):
         ),
         template_filter=template_filter,
     )
+
+
+@pytest.mark.parametrize("kind", ["kernel", "cuda_host", "cpu_host"])
+def test_handler_traits_default_and_override(kind):
+    if kind == "kernel":
+        function = make_function()
+    elif kind == "cuda_host":
+        function = FunctionInfo("Host", {"stream": ParamInfo("cudaStream_t", "stream")})
+    else:
+        function = FunctionInfo("Host", {}, platform="cpu")
+
+    assert "{xla::ffi::Traits::kCmdBufferCompatible}" in create_ffi_call(function)
+
+    function.traits = ()
+    code = create_ffi_call(function)
+    assert "Traits::" not in code
+    binding_end = '.Attr<size_t>("block_size")' if kind == "kernel" else (
+        '.Ctx<ffi::PlatformStream<cudaStream_t>>()' if kind == "cuda_host" else 'ffi::Ffi::Bind()'
+    )
+    assert code.rstrip().endswith(binding_end + "\n);")
+
+
+def test_multiple_handler_traits_use_initializer_list():
+    # Repeat the existing trait to exercise list syntax without assuming a future XLA enum.
+    function = make_function()
+    function.traits = ("kCmdBufferCompatible", "kCmdBufferCompatible")
+    code = create_ffi_call(function)
+    # Parentheses keep the comma inside one XLA_FFI_DEFINE_HANDLER_SYMBOL macro argument.
+    assert (
+        "(std::initializer_list<xla::ffi::Traits>{"
+        "xla::ffi::Traits::kCmdBufferCompatible, xla::ffi::Traits::kCmdBufferCompatible})"
+    ) in code
 
 
 def test_template_filter_receives_keywords_and_preserves_order():

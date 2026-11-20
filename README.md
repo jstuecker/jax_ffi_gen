@@ -143,3 +143,25 @@ C++ reference parameters (`T&`, `const T&`, `T&&`) are not supported.
 Automatic discovery skips functions containing them. Explicitly requesting such
 a function raises an error naming the function and reference parameter, rather
 than reporting that the function was not found.
+
+### Handler traits and CUDA graphs
+
+Generated handlers declare `xla::ffi::Traits::kCmdBufferCompatible` by default,
+preserving the existing behavior. This tells XLA that a handler is safe to capture
+into a CUDA graph; it does not make an incompatible implementation capture-safe.
+Set `FunctionInfo.traits = ()` for handlers that must execute outside capture:
+
+```python
+function.traits = ()
+```
+
+Examples include handlers that allocate device memory or create library plans
+during execution, synchronize the stream to inspect GPU values on the host, or
+perform host-side checks that must run on every invocation rather than only when
+the graph is captured. Such handlers can still use generated FFI bindings.
+
+`traits` is a tuple of unqualified `xla::ffi::Traits` enumerator names supported
+by the target XLA headers. Multiple entries are emitted as a comma-separated
+initializer list, parenthesized to keep it a single macro argument. The caller is
+responsible for choosing traits that accurately
+describe the handler; see the [XLA FFI trait contract](https://github.com/openxla/xla/blob/main/xla/ffi/api/api.h).
