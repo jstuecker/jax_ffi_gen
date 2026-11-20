@@ -84,6 +84,8 @@ class FunctionInfo():
     smem_size_expression : str = ""
     init_outputs_zero : bool = False
     checks: tuple[tuple[str, str], ...] = field(default=(), kw_only=True)  # (condition, message)
+    # XLA FFI traits; use () for handlers that must execute outside CUDA graph capture.
+    traits: tuple[str, ...] = field(default=("kCmdBufferCompatible",), kw_only=True)
     template_filter : Callable[..., bool] | None = None
 
     def template_values_flat(self):
